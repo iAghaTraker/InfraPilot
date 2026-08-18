@@ -1,0 +1,112 @@
+[Unit]
+Description=InfraPilot Agent
+Documentation=https://github.com/iAghaTraker/InfraPilot
+After=network.target
+Wants=network.target
+
+# Give up restarting rather than hammering a host that cannot run the Agent at
+# all — a misconfiguration should surface as a failed unit, not a crash loop.
+# These belong in [Unit]; systemd ignores them in [Service].
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+
+# The Agent runs unprivileged. It manages infrastructure, so it is exactly the
+# kind of service worth compromising; running it as root would make a single
+# bug in a future module a full host compromise. Operations that genuinely need
+# privilege will be isolated behind an explicit, auditable boundary in a later
+# version rather than granted wholesale here.
+User=infrapilot
+Group=infrapilot
+
+ExecStart=/usr/local/bin/infrapilot-agent
+
+# The Agent handles SIGTERM and shuts down cleanly: it closes the database and
+# checkpoints the write-ahead log. TimeoutStopSec is comfortably above the
+# default agent.shutdown_timeout of 15s so systemd escalates to SIGKILL only
+# when the Agent has genuinely failed to stop.
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+# Restart on failure, not on a clean exit. "always" would fight an operator who
+# stopped the service deliberately, and an Agent that exits zero has been asked
+# to stop.
+Restart=on-failure
+RestartSec=5s
+
+# State directory. systemd creates /var/lib/infrapilot with this mode and the
+# service's ownership before ExecStart, so the Agent never needs to create its
+# own parent directory and no permissions have to be fixed after the fact.
+StateDirectory=infrapilot
+StateDirectoryMode=0750
+
+# Configuration is read-only to the service: the Agent must never rewrite its
+# own configuration, and an operator editing /etc/infrapilot is the only path
+# by which it should change.
+ConfigurationDirectory=infrapilot
+ConfigurationDirectoryMode=0750
+
+# --- Sandboxing ---
+#
+# Each of these closes a specific escalation route. They are set here rather
+# than left to the administrator because a default-secure unit is the point.
+
+# Privilege escalation. NoNewPrivileges makes setuid binaries useless to this
+# service and is what gives the remaining restrictions their teeth.
+NoNewPrivileges=true
+
+# Filesystem. The whole hierarchy is read-only except the state directory,
+# which systemd makes writable automatically. /home, /root and /run/user are
+# invisible: the Agent has no business reading users' files.
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/infrapilot
+
+# Kernel and hardware interfaces the Agent never needs.
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+PrivateDevices=true
+
+# Capabilities. The Agent needs none; both lines are set because clearing the
+# ambient set alone would still allow file capabilities to be picked up.
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+# System calls. Restrict to the ordinary system-service set, then remove the
+# families a Go service has no use for. An unexpected call fails with EPERM
+# rather than killing the process, which keeps a false positive debuggable.
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources @obsolete @mount @swap @reboot @raw-io @cpu-emulation @debug
+SystemCallErrorNumber=EPERM
+
+# Namespaces and execution. Nothing here is used by the Agent, and each is a
+# known route out of a sandbox.
+RestrictNamespaces=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RemoveIPC=true
+KeyringMode=private
+
+# Network. v0.1.0 has no listener at all — the Agent's entire external surface
+# is its data directory. The address families are restricted rather than
+# disabled outright because AF_UNIX is needed to reach the system journal.
+RestrictAddressFamilies=AF_UNIX
+
+# Logging. The Agent writes structured logs to stderr; systemd captures them.
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=infrapilot-agent
+
+[Install]
+WantedBy=multi-user.target

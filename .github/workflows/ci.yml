@@ -1,0 +1,156 @@
+# Continuous integration for InfraPilot.
+#
+# Runs the checks the project's own contribution rules require: formatting,
+# vet, tests and a build. Everything here can be run locally with the same
+# commands, so a red pipeline is always reproducible on a developer's machine.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # Allow a manual run, which is useful when investigating a flake without
+  # pushing an empty commit.
+  workflow_dispatch:
+
+# The default token needs no write access for any job here.
+permissions:
+  contents: read
+
+concurrency:
+  # Supersede an in-flight run when a branch is pushed again; the older result
+  # is about code nobody is looking at any more.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Pinned rather than "stable" so a toolchain release cannot turn a green
+  # pipeline red without a commit explaining it.
+  GO_VERSION: "1.25"
+
+jobs:
+  build:
+    name: Build and test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          check-latest: true
+
+      # Formatting is checked rather than applied: CI reports, it does not
+      # rewrite a contributor's branch.
+      - name: Check formatting
+        run: |
+          unformatted="$(gofmt -l ./cmd ./internal ./pkg)"
+          if [ -n "$unformatted" ]; then
+            echo "These files are not gofmt-formatted:"
+            echo "$unformatted"
+            echo
+            echo "Run: gofmt -w ./cmd ./internal ./pkg"
+            exit 1
+          fi
+
+      # go.mod and go.sum must already describe the build. A tidy that changes
+      # them means the committed state is wrong.
+      - name: Check dependencies are tidy
+        run: |
+          cp go.mod go.mod.orig
+          cp go.sum go.sum.orig
+          go mod tidy
+          if ! diff -q go.mod go.mod.orig >/dev/null || ! diff -q go.sum go.sum.orig >/dev/null; then
+            echo "go.mod or go.sum is out of date. Run: go mod tidy"
+            diff -u go.mod.orig go.mod || true
+            diff -u go.sum.orig go.sum || true
+            exit 1
+          fi
+          rm -f go.mod.orig go.sum.orig
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Build
+        run: go build ./...
+
+      - name: Test
+        run: go test ./... -count=1
+
+      # The race detector is the check that catches the concurrency bugs a
+      # lifecycle package is prone to. It is a separate step so a failure is
+      # unambiguous about which run found the problem.
+      - name: Test with the race detector
+        run: go test ./... -count=1 -race
+
+      # The Agent and CLI must build for the architectures the installer
+      # accepts, so a portability break is caught here rather than on a user's
+      # arm64 host.
+      - name: Cross-compile for arm64
+        run: GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build ./...
+
+  installer:
+    name: Installer
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          check-latest: true
+
+      - name: Lint shell scripts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+          shellcheck installer/install.sh tests/installer_test.sh scripts/check.sh
+
+      # Runs unprivileged and only exercises --dry-run and argument handling,
+      # so it changes nothing on the runner.
+      - name: Test the installer
+        run: tests/installer_test.sh
+
+      # The runner has systemd, so the unit is validated rather than merely
+      # grepped.
+      - name: Verify the systemd unit
+        run: |
+          output="$(systemd-analyze verify installer/systemd/infrapilot-agent.service 2>&1 \
+            | grep 'infrapilot-agent.service' \
+            | grep -v 'is not executable' || true)"
+          if [ -n "$output" ]; then
+            echo "$output"
+            exit 1
+          fi
+          echo "The unit file is valid."
+
+  security:
+    name: Security
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          check-latest: true
+
+      # Reports known vulnerabilities in dependencies and in the toolchain
+      # itself. It analyses reachable code, so it does not fail the build for a
+      # CVE in a function InfraPilot never calls.
+      #
+      # The tool is pinned; the vulnerability database it consults is fetched at
+      # run time, so pinning costs nothing in freshness.
+      - name: Check for known vulnerabilities
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.6.0
+          govulncheck ./...

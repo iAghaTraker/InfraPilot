@@ -1,0 +1,38 @@
+# InfraPilot configuration
+#
+# Every setting below is optional: InfraPilot runs on its built-in defaults
+# when this file is absent. The values shown are those defaults.
+#
+# Permissions: this file is owned by root, group infrapilot, mode 0640. The
+# Agent only reads it, so it must not be writable by the service account, and
+# it must never be world-readable.
+#
+# Environment variables override these values. See docs/configuration.md.
+
+version: 1
+
+agent:
+  # Directory holding InfraPilot state, including the database.
+  data_dir: /var/lib/infrapilot
+
+  # How long the Agent waits for a graceful shutdown before exiting.
+  # Keep systemd's TimeoutStopSec above this value.
+  shutdown_timeout: 15s
+
+  # How often the Agent records a liveness entry in its log.
+  heartbeat_interval: 1m0s
+
+logging:
+  # One of: debug, info, warn, error.
+  level: info
+
+  # One of: text, json. Use json when shipping logs to an aggregator.
+  format: text
+
+storage:
+  # Database file. A relative path resolves inside agent.data_dir;
+  # it may not escape that directory.
+  path: infrapilot.db
+
+  # How long a query waits for a database lock before failing.
+  busy_timeout: 5s

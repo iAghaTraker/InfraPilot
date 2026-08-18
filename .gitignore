@@ -1,0 +1,30 @@
+# Build output
+/bin/
+/dist/
+/infrapilot
+/infrapilot-agent
+
+# Test and coverage artifacts
+*.test
+*.out
+coverage.txt
+
+# Local runtime data (databases, WAL sidecars, logs)
+*.db
+*.db-shm
+*.db-wal
+*.log
+device.key
+device.json
+
+# Local development configuration. Never commit real configuration:
+# it may contain host-specific paths and, in future versions, credentials.
+/config.yaml
+/config.local.yaml
+.env
+
+# Editor and OS noise
+.vscode/
+.idea/
+*.swp
+.DS_Store
