@@ -1,0 +1,1 @@
+export function ErrorState({ message, retry }: { message: string; retry?: () => void }) { return <div className="state error-state"><strong>Unable to load this view</strong><span>{message}</span>{retry && <button onClick={retry}>Try again</button>}</div>; }

@@ -9,7 +9,7 @@ while staying powerful enough for advanced users.
 
 ---
 
-## 🚧 Project status: v0.5.3 — React frontend migration
+## 🚧 Project status: v0.5.4 — Web Panel polish and production UX
 
 **InfraPilot is early development and is not production-ready.**
 
@@ -181,6 +181,11 @@ The frontend source lives in `web-ui/` and uses React, TypeScript, Vite, and
 TailwindCSS. Developers can run `npm install && npm run build`; production
 installations use the generated static assets embedded in `infrapilot-web` and
 do not need Node.js or npm.
+
+The dashboard includes a responsive navigation shell, connection/device status,
+resource metrics, service cards, loading/error/empty states, and a first-login
+onboarding view. The frontend continues to use the existing API and
+challenge/signature authentication flow.
 
 First-time setup is `infrapilot sk create`, followed by pairing with
 `infrapilot sk replace <token>`. The panel discovers the local identity and no

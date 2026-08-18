@@ -150,6 +150,12 @@ under `web-ui/`, with API, authentication, page, component, and type layers.
 Production assets remain embedded in the Go binary. No backend API or security
 architecture changes are part of this milestone.
 
+### v0.5.4 — Web Panel polish and production UX
+
+The dashboard now has a responsive enterprise layout, reusable UI components,
+typed loading/error/empty states, resource and service summaries, and clearer
+identity/session status. Backend APIs and authentication are unchanged.
+
 ---
 
 5. v0.1.0 — Foundation
