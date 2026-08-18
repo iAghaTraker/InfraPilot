@@ -118,6 +118,18 @@ This stops and removes the service, the binaries and the service account.
 recoverable, so removing it is your decision, not the script's. Remove them by
 hand when you are sure.
 
+The installed CLI provides the safer lifecycle command:
+
+```sh
+sudo infrapilot uninstall
+```
+
+It explicitly confirms before stopping and removing the two InfraPilot
+services, systemd units, and binaries, while preserving identities, databases,
+logs, and configuration. To remove all local data, use
+`sudo infrapilot uninstall --purge`; purge requires the exact phrase
+`REMOVE ALL INFRAPILOT DATA`.
+
 ## Testing
 
 ```sh

@@ -23,7 +23,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	code := cli.Execute(ctx, os.Args[1:], cli.IO{Out: os.Stdout, Err: os.Stderr})
+	code := cli.Execute(ctx, os.Args[1:], cli.IO{Out: os.Stdout, Err: os.Stderr, In: os.Stdin})
 
 	// stop is released before exiting so signal handling is not left installed
 	// on a process that is on its way out.

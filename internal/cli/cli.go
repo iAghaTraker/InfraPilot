@@ -28,6 +28,7 @@ import (
 type IO struct {
 	Out io.Writer
 	Err io.Writer
+	In  io.Reader
 }
 
 // command is one subcommand.
@@ -79,6 +80,9 @@ func commands() []command {
 		{Name: "system", Summary: "Show system information", Run: func(ctx context.Context, _ Env, args []string, out IO) error { return runSystem(ctx, args, out) }},
 		{Name: "sk", Summary: "Create and manage secure device identities", Run: func(ctx context.Context, env Env, args []string, out IO) error { return runSK(ctx, env, args, out) }},
 		{Name: "web", Summary: "Manage the local Web Panel service", Run: func(ctx context.Context, _ Env, args []string, out IO) error { return runWeb(ctx, args, out) }},
+		{Name: "uninstall", Summary: "Remove InfraPilot services and binaries (preserves data)", Run: func(ctx context.Context, env Env, args []string, out IO) error {
+			return runUninstall(ctx, env, args, out)
+		}},
 	}
 }
 

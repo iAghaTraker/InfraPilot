@@ -156,6 +156,13 @@ The dashboard now has a responsive enterprise layout, reusable UI components,
 typed loading/error/empty states, resource and service summaries, and clearer
 identity/session status. Backend APIs and authentication are unchanged.
 
+### v0.5.5 — Official uninstall lifecycle
+
+`infrapilot uninstall` removes only InfraPilot services, units, and binaries
+after explicit confirmation and preserves user data by default. The optional
+`--purge` path requires an exact stronger confirmation phrase before removing
+identities, databases, logs, and configuration.
+
 ---
 
 5. v0.1.0 — Foundation

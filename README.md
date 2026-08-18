@@ -157,6 +157,8 @@ infrapilot web start                              Start the local Web Panel serv
 infrapilot web start background                   Start it through systemd
 infrapilot web stop|restart|status|logs           Manage or inspect the Web Panel
 infrapilot web enable|disable                     Enable or disable at boot
+infrapilot uninstall                              Remove services and binaries; preserve data
+infrapilot uninstall --purge                      Remove installation and all data (strong confirmation)
 ```
 
 The private key is stored under the configured data directory with mode `0600`
@@ -167,6 +169,12 @@ InfraPilot Agent over a restricted Unix socket (`/run/infrapilot/agent.sock`),
 with loopback TCP only as a fallback. The browser
 never receives the private key. IP address, HTTP headers, cookies, and public
 key possession alone are not authentication.
+
+To remove InfraPilot safely, run `infrapilot uninstall`. It always asks for
+explicit confirmation, removes only InfraPilot binaries and systemd units, and
+preserves `/var/lib/infrapilot` and `/etc/infrapilot`. The optional `--purge`
+mode requires typing `REMOVE ALL INFRAPILOT DATA` and removes local identities,
+databases, configuration, and logs.
 
 The v0.5 Web Panel serves an embedded static dashboard. It binds to
 `127.0.0.1:8090` by default and protects its read-only APIs with a
