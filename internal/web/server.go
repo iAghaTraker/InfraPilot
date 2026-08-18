@@ -40,10 +40,12 @@ func (s *Server) Shutdown(ctx context.Context) error { return s.http.Shutdown(ct
 
 func (s *Server) handler() http.Handler {
 	mux := http.NewServeMux()
-	assets, _ := fs.Sub(Assets, "assets")
+	assets, _ := fs.Sub(Assets, "dist/assets")
 	mux.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.FS(assets))))
 	mux.HandleFunc("/api/auth/challenge", s.challenge)
+	mux.HandleFunc("/api/auth/discover", s.discover)
 	mux.HandleFunc("/api/auth/verify", s.verify)
+	mux.HandleFunc("/api/auth/logout", s.logout)
 	mux.Handle("/api/status", s.protected(http.HandlerFunc(s.status)))
 	mux.Handle("/api/system", s.protected(http.HandlerFunc(s.system)))
 	mux.Handle("/api/services", s.protected(http.HandlerFunc(s.services)))
@@ -52,7 +54,7 @@ func (s *Server) handler() http.Handler {
 			http.NotFound(w, r)
 			return
 		}
-		data, err := Assets.ReadFile("assets/index.html")
+		data, err := Assets.ReadFile("dist/index.html")
 		if err != nil {
 			http.Error(w, "panel unavailable", 500)
 			return
@@ -61,6 +63,18 @@ func (s *Server) handler() http.Handler {
 		_, _ = w.Write(data)
 	})
 	return mux
+}
+func (s *Server) discover(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", 405)
+		return
+	}
+	i, err := identity.Load(s.cfg.Agent.DataDir)
+	if err != nil {
+		writeJSON(w, map[string]any{"available": false})
+		return
+	}
+	writeJSON(w, map[string]any{"available": true, "device_id": i.DeviceID})
 }
 func (s *Server) protected(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -126,6 +140,17 @@ func (s *Server) verify(w http.ResponseWriter, r *http.Request) {
 	s.sessions[token] = time.Now().Add(15 * time.Minute)
 	s.mu.Unlock()
 	writeJSON(w, map[string]string{"session": token})
+}
+func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", 405)
+		return
+	}
+	token := strings.TrimSpace(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "))
+	s.mu.Lock()
+	delete(s.sessions, token)
+	s.mu.Unlock()
+	w.WriteHeader(http.StatusNoContent)
 }
 func (s *Server) status(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, core.CollectStatus(r.Context(), s.cfg, s.paths, nil))

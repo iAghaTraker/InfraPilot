@@ -19,6 +19,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/iAghaTraker/InfraPilot/internal/bridge"
 	"github.com/iAghaTraker/InfraPilot/internal/config"
 	"github.com/iAghaTraker/InfraPilot/internal/errors"
 	"github.com/iAghaTraker/InfraPilot/internal/logging"
@@ -284,6 +285,11 @@ func (a *Agent) clearLiveness() {
 // alive and healthy, and so the run loop has a real periodic task rather than
 // a bare block. When later versions add work, it belongs here.
 func (a *Agent) serve(ctx context.Context) error {
+	go func() {
+		if err := bridge.Serve(ctx, bridge.DefaultAddress, a.cfg.Agent.DataDir); err != nil && ctx.Err() == nil {
+			a.log.Warn("local signing bridge unavailable", "error", err.Error())
+		}
+	}()
 	ticker := time.NewTicker(a.cfg.Agent.HeartbeatInterval)
 	defer ticker.Stop()
 

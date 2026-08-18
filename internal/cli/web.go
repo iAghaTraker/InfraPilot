@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/iAghaTraker/InfraPilot/internal/errors"
+	"github.com/iAghaTraker/InfraPilot/internal/firewall"
 	"github.com/iAghaTraker/InfraPilot/internal/web"
 	"io"
 	"strings"
@@ -70,12 +71,18 @@ func runWeb(ctx context.Context, args []string, out IO) error {
 		if err != nil {
 			return err
 		}
-		fmt.Fprintf(out.Out, "InfraPilot Web\n\nService: %s\nAddress: http://%s\n", strings.TrimSpace(v), web.DefaultAddress)
+		fw := firewall.Detect(ctx, 8090)
+		fmt.Fprintf(out.Out, "InfraPilot Web\n\nService: %s\nAddress: http://%s\nAuthentication: Enabled\nSession Timeout: 15 minutes\nFirewall: %s (%s)\nWeb Port: %d\n", strings.TrimSpace(v), web.DefaultAddress, fw.Detected, fw.Status, fw.Port)
 	case "url":
 		if len(args) != 1 {
 			return errors.New(errors.KindUsage, "cli.web", "web url takes no arguments")
 		}
-		fmt.Fprintf(out.Out, "http://%s\n", web.DefaultAddress)
+		fmt.Fprintf(out.Out, "InfraPilot Web Panel\n\nOpen:\nhttp://%s\n\nThe URL does not replace device authentication.\n", web.DefaultAddress)
+	case "tls":
+		if len(args) != 2 || args[1] != "status" {
+			return errors.New(errors.KindUsage, "cli.web", "usage: infrapilot web tls status")
+		}
+		fmt.Fprintln(out.Out, "InfraPilot Web TLS\n\nStatus: Not configured\nHTTPS enablement is reserved for a future release.")
 	case "logs":
 		if len(args) != 1 {
 			return errors.New(errors.KindUsage, "cli.web", "web logs takes no arguments")

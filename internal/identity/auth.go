@@ -30,9 +30,11 @@ func NewAuthenticator(repository *Repository) *Authenticator {
 func (a *Authenticator) Challenge(ctx context.Context, deviceID string, now time.Time) (string, []byte, error) {
 	device, err := a.repository.Get(ctx, deviceID)
 	if err != nil {
+		a.repository.audit(ctx, "device_authentication_failure", deviceID, false, "device not found", now)
 		return "", nil, err
 	}
 	if device.Status != "active" {
+		a.repository.audit(ctx, "device_authentication_failure", deviceID, false, "device revoked", now)
 		return "", nil, errors.New(errors.KindPermission, "identity.Challenge", "device identity is revoked")
 	}
 	idRaw, err := NewChallenge()
@@ -56,18 +58,23 @@ func (a *Authenticator) Verify(ctx context.Context, challengeID string, signatur
 	delete(a.challenges, challengeID)
 	a.mu.Unlock()
 	if !ok || !now.Before(record.expires) {
+		a.repository.audit(ctx, "challenge_rejected", record.deviceID, false, "missing, expired, or replayed challenge", now)
 		return errors.New(errors.KindPermission, "identity.Verify", "authentication challenge is invalid or expired")
 	}
 	device, err := a.repository.Get(ctx, record.deviceID)
 	if err != nil {
+		a.repository.audit(ctx, "device_authentication_failure", record.deviceID, false, "device not found", now)
 		return err
 	}
 	if device.Status != "active" {
+		a.repository.audit(ctx, "device_authentication_failure", record.deviceID, false, "device revoked", now)
 		return errors.New(errors.KindPermission, "identity.Verify", "device identity is revoked")
 	}
 	if !ed25519.Verify(device.PublicKey, record.value, signature) {
+		a.repository.audit(ctx, "device_authentication_failure", record.deviceID, false, "invalid signature", now)
 		return errors.New(errors.KindPermission, "identity.Verify", "authentication signature is invalid")
 	}
+	a.repository.audit(ctx, "login_success", record.deviceID, true, "", now)
 	return nil
 }
 

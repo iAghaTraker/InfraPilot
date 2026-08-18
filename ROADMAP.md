@@ -129,6 +129,27 @@ The first browser dashboard is served as static assets embedded in
 flow and displays system, service, and module foundations. It deliberately
 does not add Minecraft management, cloud services, or external authentication.
 
+### v0.5.1 — Local Web Panel authentication
+
+The browser now obtains a one-time challenge from the Web Panel, asks the
+loopback-only Agent signing bridge to sign it, and submits the signature for
+verification. The bridge never returns key material and accepts only bounded
+challenge requests.
+
+### v0.5.2 — Production Web Panel and identity UX
+
+The panel discovers the local identity automatically, uses the Unix-socket-first
+Agent signing bridge, and exposes an opt-in TLS status foundation. Frontend
+assets remain embedded in the Go binary, so users still install no Node.js or
+npm. Minecraft remains deferred to v0.6.
+
+### v0.5.3 — React frontend migration
+
+The Web Panel frontend source is organized as a React/TypeScript/Vite project
+under `web-ui/`, with API, authentication, page, component, and type layers.
+Production assets remain embedded in the Go binary. No backend API or security
+architecture changes are part of this milestone.
+
 ---
 
 5. v0.1.0 — Foundation

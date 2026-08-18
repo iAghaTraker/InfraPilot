@@ -9,7 +9,7 @@ while staying powerful enough for advanced users.
 
 ---
 
-## 🚧 Project status: v0.5.0 — Local Web Panel UI foundation
+## 🚧 Project status: v0.5.3 — React frontend migration
 
 **InfraPilot is early development and is not production-ready.**
 
@@ -162,8 +162,11 @@ infrapilot web enable|disable                     Enable or disable at boot
 The private key is stored under the configured data directory with mode `0600`
 and is never printed. Pairing tokens are signed by the device key, expire after
 10 minutes, are stored only as hashes, and are consumed on successful pairing.
-The future Web Panel must authenticate by challenge and signature; IP address,
-HTTP headers and public-key possession alone are not authentication.
+The Web Panel authenticates with a fresh server challenge signed by the local
+InfraPilot Agent over a restricted Unix socket (`/run/infrapilot/agent.sock`),
+with loopback TCP only as a fallback. The browser
+never receives the private key. IP address, HTTP headers, cookies, and public
+key possession alone are not authentication.
 
 The v0.5 Web Panel serves an embedded static dashboard. It binds to
 `127.0.0.1:8090` by default and protects its read-only APIs with a
@@ -173,6 +176,16 @@ trust source IPs or browser headers.
 UI assets are embedded in the Go binary; installed hosts do not need Node.js,
 npm, or yarn. The dashboard foundation does not include Minecraft management,
 cloud services, or external authentication.
+
+The frontend source lives in `web-ui/` and uses React, TypeScript, Vite, and
+TailwindCSS. Developers can run `npm install && npm run build`; production
+installations use the generated static assets embedded in `infrapilot-web` and
+do not need Node.js or npm.
+
+First-time setup is `infrapilot sk create`, followed by pairing with
+`infrapilot sk replace <token>`. The panel discovers the local identity and no
+longer requires manual device-ID entry. `infrapilot web tls status` reports the
+HTTPS foundation; TLS enablement remains opt-in and is not automatic.
 
 Service names are validated before they reach systemd. Listing, status and
 logs generally need read access; start, stop, restart, enable and disable

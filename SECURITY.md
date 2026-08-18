@@ -89,10 +89,12 @@ In scope:
   command output.
 - Path traversal, privilege escalation, and unsafe handling of configuration.
 
-The v0.5 Web Panel serves a local embedded dashboard and read-only API. It has
+The v0.5.2 Web Panel serves a local embedded dashboard and read-only API. It has
 no cloud login, user accounts, or external authentication. Authentication uses a
-fresh one-time challenge signed by a paired Ed25519 private key; network
-location and browser headers are never credentials.
+fresh one-time challenge signed by a paired Ed25519 private key. The signing
+operation is exposed only on `/run/infrapilot/agent.sock` with restrictive
+permissions; loopback TCP is fallback-only. The browser receives signatures,
+never private keys. Network location and browser headers are never credentials.
 
 Out of scope for v0.4.0:
 
