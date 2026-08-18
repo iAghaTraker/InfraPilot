@@ -19,6 +19,7 @@ binaries in:
 ```sh
 CGO_ENABLED=0 go build -trimpath -o dist/infrapilot       ./cmd/infrapilot
 CGO_ENABLED=0 go build -trimpath -o dist/infrapilot-agent ./cmd/infrapilot-agent
+CGO_ENABLED=0 go build -trimpath -o dist/infrapilot-web ./cmd/infrapilot-web
 sudo ./installer/install.sh --from dist
 ```
 
@@ -41,11 +42,13 @@ before running it for real.
 | --- | --- | --- | --- |
 | `/usr/local/bin/infrapilot` | `root:root` | `0755` | CLI |
 | `/usr/local/bin/infrapilot-agent` | `root:root` | `0755` | Agent |
+| `/usr/local/bin/infrapilot-web` | `root:root` | `0755` | Web API process |
 | `/etc/infrapilot/` | `root:infrapilot` | `0750` | Configuration |
 | `/etc/infrapilot/config.yaml` | `root:infrapilot` | `0640` | Settings |
 | `/var/lib/infrapilot/` | `infrapilot:infrapilot` | `0750` | State |
 | `/var/lib/infrapilot/infrapilot.db` | `infrapilot:infrapilot` | `0600` | Database |
 | `/etc/systemd/system/infrapilot-agent.service` | `root:root` | `0644` | Service |
+| `/etc/systemd/system/infrapilot-web.service` | `root:root` | `0644` | Web API service |
 
 Binaries and configuration are owned by `root` and are not writable by the
 service account: the Agent reads its configuration and must never rewrite it or
@@ -88,6 +91,8 @@ infrapilot status
 infrapilot doctor
 systemctl status infrapilot-agent
 journalctl -u infrapilot-agent -f
+infrapilot web status
+infrapilot web logs
 ```
 
 ## Uninstalling

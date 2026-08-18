@@ -8,7 +8,7 @@ over feature work.
 
 | Version | Supported |
 | --- | --- |
-| 0.3.x | Yes, as the current development line |
+| 0.4.x | Yes, as the current development line |
 | < 0.1 | No |
 
 InfraPilot is pre-1.0 and under active development. Until a stable release
@@ -89,11 +89,14 @@ In scope:
   command output.
 - Path traversal, privilege escalation, and unsafe handling of configuration.
 
-Out of scope for v0.3.0, because they do not exist yet:
+The v0.4 Web Panel is intentionally limited to a loopback HTTP API. It has no
+browser UI, cloud login, user accounts, or remote API. Authentication uses a
+fresh one-time challenge signed by a paired Ed25519 private key; network
+location and browser headers are never credentials.
 
-- The Web Panel, Desktop App, public API and module system. The Agent exposes
-  **no network listener** in v0.3.0; a report
-  that assumes a remote attack surface is describing a future version.
+Out of scope for v0.4.0:
+
+- The Desktop App, public API and module system.
 
 Also out of scope:
 

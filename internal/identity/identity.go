@@ -260,4 +260,6 @@ func (i *Identity) Sign(challenge []byte) ([]byte, error) {
 	}
 	return ed25519.Sign(i.privateKey, challenge), nil
 }
-func NewChallenge() ([]byte, error) { b := make([]byte, 32); _, err := rand.Read(b); return b, err }
+func NewChallenge() ([]byte, error)                { b := make([]byte, 32); _, err := rand.Read(b); return b, err }
+func DecodeChallenge(value string) ([]byte, error) { return base64.RawURLEncoding.DecodeString(value) }
+func EncodeSignature(value []byte) string          { return base64.RawURLEncoding.EncodeToString(value) }

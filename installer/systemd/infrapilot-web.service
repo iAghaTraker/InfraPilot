@@ -1,0 +1,25 @@
+[Unit]
+Description=InfraPilot Local Web Panel
+Documentation=https://github.com/iAghaTraker/InfraPilot
+After=network.target infrapilot-agent.service
+Requires=infrapilot-agent.service
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=infrapilot
+Group=infrapilot
+ExecStart=/usr/local/bin/infrapilot-web
+Restart=on-failure
+RestartSec=5s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/infrapilot
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+MemoryDenyWriteExecute=true
+
+[Install]
+WantedBy=multi-user.target

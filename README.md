@@ -125,6 +125,10 @@ that needs no privileges.
 
 See [installer/README.md](installer/README.md).
 
+The installer also installs `infrapilot-web` and its hardened systemd unit.
+Existing configuration and state are preserved on upgrades; use `--from DIR`
+to install prebuilt binaries on a host without Go.
+
 ---
 
 ## ⌨️ CLI
@@ -144,6 +148,10 @@ infrapilot sk status                             Show the local identity
 infrapilot sk replace <pairing-token>             Register a device identity
 infrapilot sk list                                List trusted devices
 infrapilot sk revoke <device-id>                  Revoke a trusted device
+infrapilot web start                              Start the local Web Panel service
+infrapilot web start background                   Start it through systemd
+infrapilot web stop|restart|status|logs           Manage or inspect the Web Panel
+infrapilot web enable|disable                     Enable or disable at boot
 ```
 
 The private key is stored under the configured data directory with mode `0600`
@@ -151,6 +159,11 @@ and is never printed. Pairing tokens are signed by the device key, expire after
 10 minutes, are stored only as hashes, and are consumed on successful pairing.
 The future Web Panel must authenticate by challenge and signature; IP address,
 HTTP headers and public-key possession alone are not authentication.
+
+The v0.4 Web Panel is an API foundation, not a browser UI. It binds to
+`127.0.0.1:8090` by default and protects its read-only APIs with a
+challenge/signature login using a paired Ed25519 device identity. It does not
+trust source IPs or browser headers.
 
 Service names are validated before they reach systemd. Listing, status and
 logs generally need read access; start, stop, restart, enable and disable
@@ -368,9 +381,8 @@ Worth knowing before you try v0.2.0:
 ```
 v0.1  Foundation
 v0.2  Agent + Service Manager
-v0.3  Secure Device Identity & Pairing ← you are here
-v0.3  Secure Pairing
-v0.4  Web Panel
+v0.3  Secure Device Identity & Pairing
+v0.4  Local Web Panel API + Professional Installer ← current
 v0.5  File Manager
 v0.6  Minecraft
 v0.7  Module System

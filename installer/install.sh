@@ -24,6 +24,7 @@
 set -euo pipefail
 
 readonly SERVICE_NAME="infrapilot-agent"
+readonly WEB_SERVICE_NAME="infrapilot-web"
 readonly SERVICE_USER="infrapilot"
 readonly SERVICE_GROUP="infrapilot"
 readonly CONFIG_DIR="/etc/infrapilot"
@@ -145,10 +146,10 @@ resolve_binaries() {
     log "Using prebuilt binaries from $FROM_DIR"
     BIN_SRC="$FROM_DIR"
     local binary
-    for binary in infrapilot infrapilot-agent; do
+    for binary in infrapilot infrapilot-agent infrapilot-web; do
       [[ -f "${BIN_SRC}/${binary}" ]] || die "missing binary: ${BIN_SRC}/${binary}"
     done
-    ok "found infrapilot and infrapilot-agent"
+    ok "found infrapilot, infrapilot-agent and infrapilot-web"
     return
   fi
 
@@ -162,7 +163,8 @@ resolve_binaries() {
 
   run env CGO_ENABLED=0 go build -C "$REPO_ROOT" -trimpath -o "${BIN_SRC}/infrapilot" ./cmd/infrapilot
   run env CGO_ENABLED=0 go build -C "$REPO_ROOT" -trimpath -o "${BIN_SRC}/infrapilot-agent" ./cmd/infrapilot-agent
-  ok "built infrapilot and infrapilot-agent"
+  run env CGO_ENABLED=0 go build -C "$REPO_ROOT" -trimpath -o "${BIN_SRC}/infrapilot-web" ./cmd/infrapilot-web
+  ok "built infrapilot, infrapilot-agent and infrapilot-web"
 }
 
 create_account() {
@@ -199,7 +201,8 @@ install_binaries() {
   # be able to modify the binary it runs.
   run install -m "$BIN_MODE" -o root -g root "${BIN_SRC}/infrapilot"       "${PREFIX}/bin/infrapilot"
   run install -m "$BIN_MODE" -o root -g root "${BIN_SRC}/infrapilot-agent" "${PREFIX}/bin/infrapilot-agent"
-  ok "installed infrapilot and infrapilot-agent"
+  run install -m "$BIN_MODE" -o root -g root "${BIN_SRC}/infrapilot-web" "${PREFIX}/bin/infrapilot-web"
+  ok "installed infrapilot, infrapilot-agent and infrapilot-web"
 }
 
 create_directories() {
@@ -264,6 +267,18 @@ install_service() {
 
   run systemctl daemon-reload
   run systemctl enable "$SERVICE_NAME"
+  local web_unit="${REPO_ROOT}/installer/systemd/${WEB_SERVICE_NAME}.service"
+  [[ -f "$web_unit" ]] || die "unit file not found: $web_unit"
+  if [[ "$PREFIX" == "/usr/local" ]]; then
+    run install -m 0644 -o root -g root "$web_unit" "/etc/systemd/system/${WEB_SERVICE_NAME}.service"
+  elif (( DRY_RUN )); then
+    printf '  would install: %s -> /etc/systemd/system/%s.service\n' "$web_unit" "$WEB_SERVICE_NAME"
+  else
+    sed "s|^ExecStart=/usr/local/bin/infrapilot-web$|ExecStart=${PREFIX}/bin/infrapilot-web|" "$web_unit" > "${web_unit}.tmp"
+    run install -m 0644 -o root -g root "${web_unit}.tmp" "/etc/systemd/system/${WEB_SERVICE_NAME}.service"
+    rm -f "${web_unit}.tmp"
+  fi
+  run systemctl enable "$WEB_SERVICE_NAME"
   ok "service enabled; it will start on boot"
 }
 
@@ -299,7 +314,7 @@ verify() {
   local failures=0
 
   local binary
-  for binary in infrapilot infrapilot-agent; do
+  for binary in infrapilot infrapilot-agent infrapilot-web; do
     if [[ -x "${PREFIX}/bin/${binary}" ]]; then
       ok "${PREFIX}/bin/${binary} is installed"
     else
@@ -348,15 +363,15 @@ uninstall() {
   log "Uninstalling InfraPilot"
 
   if systemctl list-unit-files "${SERVICE_NAME}.service" >/dev/null 2>&1; then
-    run systemctl disable --now "$SERVICE_NAME" || true
+    run systemctl disable --now "$SERVICE_NAME" "$WEB_SERVICE_NAME" || true
     ok "service stopped and disabled"
   fi
 
-  run rm -f "$UNIT_PATH"
+  run rm -f "$UNIT_PATH" "/etc/systemd/system/${WEB_SERVICE_NAME}.service"
   run systemctl daemon-reload
   ok "unit removed"
 
-  run rm -f "${PREFIX}/bin/infrapilot" "${PREFIX}/bin/infrapilot-agent"
+  run rm -f "${PREFIX}/bin/infrapilot" "${PREFIX}/bin/infrapilot-agent" "${PREFIX}/bin/infrapilot-web"
   ok "binaries removed"
 
   if getent passwd "$SERVICE_USER" >/dev/null; then
