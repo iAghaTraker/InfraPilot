@@ -122,6 +122,13 @@ The first stable release is:
 
 v1.0.0
 
+### v0.5.0 — Local Web Panel UI foundation
+
+The first browser dashboard is served as static assets embedded in
+`infrapilot-web`. It uses the existing challenge/signature device identity
+flow and displays system, service, and module foundations. It deliberately
+does not add Minecraft management, cloud services, or external authentication.
+
 ---
 
 5. v0.1.0 — Foundation

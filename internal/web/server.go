@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"io/fs"
 	"net"
 	"net/http"
 	"strings"
@@ -39,13 +40,25 @@ func (s *Server) Shutdown(ctx context.Context) error { return s.http.Shutdown(ct
 
 func (s *Server) handler() http.Handler {
 	mux := http.NewServeMux()
+	assets, _ := fs.Sub(Assets, "assets")
+	mux.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.FS(assets))))
 	mux.HandleFunc("/api/auth/challenge", s.challenge)
 	mux.HandleFunc("/api/auth/verify", s.verify)
 	mux.Handle("/api/status", s.protected(http.HandlerFunc(s.status)))
 	mux.Handle("/api/system", s.protected(http.HandlerFunc(s.system)))
 	mux.Handle("/api/services", s.protected(http.HandlerFunc(s.services)))
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		http.Error(w, "InfraPilot Web Panel API", http.StatusNotFound)
+		if r.URL.Path != "/" {
+			http.NotFound(w, r)
+			return
+		}
+		data, err := Assets.ReadFile("assets/index.html")
+		if err != nil {
+			http.Error(w, "panel unavailable", 500)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write(data)
 	})
 	return mux
 }

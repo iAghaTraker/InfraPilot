@@ -70,7 +70,12 @@ func runWeb(ctx context.Context, args []string, out IO) error {
 		if err != nil {
 			return err
 		}
-		fmt.Fprintf(out.Out, "InfraPilot Web\n\nService: %s\n", strings.TrimSpace(v))
+		fmt.Fprintf(out.Out, "InfraPilot Web\n\nService: %s\nAddress: http://%s\n", strings.TrimSpace(v), web.DefaultAddress)
+	case "url":
+		if len(args) != 1 {
+			return errors.New(errors.KindUsage, "cli.web", "web url takes no arguments")
+		}
+		fmt.Fprintf(out.Out, "http://%s\n", web.DefaultAddress)
 	case "logs":
 		if len(args) != 1 {
 			return errors.New(errors.KindUsage, "cli.web", "web logs takes no arguments")

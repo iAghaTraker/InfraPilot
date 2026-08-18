@@ -89,8 +89,8 @@ In scope:
   command output.
 - Path traversal, privilege escalation, and unsafe handling of configuration.
 
-The v0.4 Web Panel is intentionally limited to a loopback HTTP API. It has no
-browser UI, cloud login, user accounts, or remote API. Authentication uses a
+The v0.5 Web Panel serves a local embedded dashboard and read-only API. It has
+no cloud login, user accounts, or external authentication. Authentication uses a
 fresh one-time challenge signed by a paired Ed25519 private key; network
 location and browser headers are never credentials.
 

@@ -45,6 +45,32 @@ func TestProtectedAPIsRejectUnauthenticatedRequests(t *testing.T) {
 		}
 	}
 }
+
+func TestEmbeddedUIIsServed(t *testing.T) {
+	s, _ := testServer(t)
+	w := httptest.NewRecorder()
+	s.http.Handler.ServeHTTP(w, httptest.NewRequest("GET", "/", nil))
+	if w.Code != http.StatusOK || !bytes.Contains(w.Body.Bytes(), []byte("InfraPilot")) {
+		t.Fatalf("UI status=%d body=%s", w.Code, w.Body.String())
+	}
+	w = httptest.NewRecorder()
+	s.http.Handler.ServeHTTP(w, httptest.NewRequest("GET", "/assets/app.css", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("asset status=%d", w.Code)
+	}
+}
+
+func TestExpiredSessionIsRejected(t *testing.T) {
+	s, _ := testServer(t)
+	s.sessions["expired"] = time.Now().Add(-time.Second)
+	r := httptest.NewRequest("GET", "/api/system", nil)
+	r.Header.Set("Authorization", "Bearer expired")
+	w := httptest.NewRecorder()
+	s.http.Handler.ServeHTTP(w, r)
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("expired session status=%d", w.Code)
+	}
+}
 func TestChallengeVerificationCreatesSession(t *testing.T) {
 	s, id := testServer(t)
 	body, _ := json.Marshal(map[string]string{"device_id": id.DeviceID})
