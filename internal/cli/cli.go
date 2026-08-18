@@ -143,7 +143,7 @@ func parse(args []string) (name string, rest []string, err error) {
 
 	for i, arg := range args {
 		switch {
-		case arg == "-h" || arg == "--help" || arg == "help":
+		case i == 0 && (arg == "-h" || arg == "--help" || arg == "help"):
 			return "", nil, nil
 
 		case arg == "-v" || arg == "--version":

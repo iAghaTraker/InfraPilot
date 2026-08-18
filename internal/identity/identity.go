@@ -122,6 +122,26 @@ func Create(dir string) (*Identity, string, error) {
 	return i, tok, err
 }
 
+// Delete removes only the local identity files. The containing data directory
+// and any remote/trusted-device records are left untouched.
+func Delete(dir string) (string, error) {
+	i, err := Load(dir)
+	if err != nil {
+		return "", err
+	}
+	kp, mp, err := paths(dir)
+	if err != nil {
+		return "", err
+	}
+	if err := os.Remove(kp); err != nil {
+		return "", errors.Wrap(errors.KindPermission, "identity.Delete", "cannot remove private key", err)
+	}
+	if err := os.Remove(mp); err != nil {
+		return "", errors.Wrap(errors.KindPermission, "identity.Delete", "cannot remove device metadata", err)
+	}
+	return i.DeviceID, nil
+}
+
 func (i *Identity) PairingToken(now time.Time) (string, error) {
 	nonce := make([]byte, 32)
 	if _, err := rand.Read(nonce); err != nil {
