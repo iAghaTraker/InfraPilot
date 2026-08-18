@@ -9,7 +9,7 @@ while staying powerful enough for advanced users.
 
 ---
 
-## 🚧 Project status: v0.3.0 — Secure Device Identity & Pairing
+## 🚧 Project status: v0.4.1 — Release installer and Web Panel foundation
 
 **InfraPilot is early development and is not production-ready.**
 
@@ -115,8 +115,13 @@ privileges and nothing touches system directories.
 ### Installing as a service
 
 ```sh
-sudo ./installer/install.sh
+curl -fsSL https://raw.githubusercontent.com/iAghaTraker/InfraPilot/main/install.sh | sudo bash
 ```
+
+The installer detects amd64 or arm64 Linux, downloads a GitHub Release artifact,
+verifies its SHA256 checksum, and preserves configuration and data during
+upgrades. A local checkout can use `./installer/install.sh --from DIR` or
+`./install.sh --from artifact.tar.gz`.
 
 This builds both binaries, creates the unprivileged `infrapilot` service
 account, installs a hardened systemd unit, and starts and verifies the service.

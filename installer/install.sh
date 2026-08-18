@@ -226,6 +226,9 @@ install_config() {
 
   local target="${CONFIG_DIR}/config.yaml"
   if [[ -e "$target" ]]; then
+    local backup="${target}.backup.$(date -u +%Y%m%dT%H%M%SZ)"
+    run cp -p "$target" "$backup"
+    ok "backed up existing configuration to ${backup}"
     ok "${target} already exists; leaving it untouched"
     return
   fi

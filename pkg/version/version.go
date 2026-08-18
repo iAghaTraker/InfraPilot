@@ -9,11 +9,9 @@ import "runtime"
 
 // Version is the InfraPilot release version, following semantic versioning.
 //
-// It is a plain constant rather than a linker-injected variable so that a
-// plain `go build ./...` always produces a correctly versioned binary. Build
-// metadata that genuinely varies per build (commit, date) is read from the
-// embedded VCS stamp instead; see Build.
-const Version = "0.3.0"
+// Release builds override this value with -ldflags -X. Plain development
+// builds still report the current source version.
+var Version = "0.4.1"
 
 // Name is the product name used in human-facing output.
 const Name = "InfraPilot"

@@ -11,6 +11,16 @@ From a source checkout:
 sudo ./installer/install.sh
 ```
 
+For a release installation on Ubuntu or Debian:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/iAghaTraker/InfraPilot/main/install.sh | sudo bash
+```
+
+Release archives target `amd64` or `arm64` and are verified against the
+published `checksums.txt` before installation. Re-running the installer creates
+a timestamped configuration backup and preserves state.
+
 This builds both binaries, creates the `infrapilot` service account, installs
 the systemd unit, and starts and verifies the service. Building requires the Go
 toolchain; to install on a host without one, build elsewhere and pass the
