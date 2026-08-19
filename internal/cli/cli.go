@@ -79,7 +79,7 @@ func commands() []command {
 		{Name: "service", Summary: "Inspect and manage system services", Run: func(ctx context.Context, _ Env, args []string, out IO) error { return runService(ctx, args, out) }},
 		{Name: "system", Summary: "Show system information", Run: func(ctx context.Context, _ Env, args []string, out IO) error { return runSystem(ctx, args, out) }},
 		{Name: "sk", Summary: "Create and manage secure device identities", Run: func(ctx context.Context, env Env, args []string, out IO) error { return runSK(ctx, env, args, out) }},
-		{Name: "web", Summary: "Manage the local Web Panel service", Run: func(ctx context.Context, _ Env, args []string, out IO) error { return runWeb(ctx, args, out) }},
+		{Name: "web", Summary: "Manage the local Web Panel service", Run: func(ctx context.Context, env Env, args []string, out IO) error { return runWeb(ctx, env, args, out) }},
 		{Name: "uninstall", Summary: "Remove InfraPilot services and binaries (preserves data)", Run: func(ctx context.Context, env Env, args []string, out IO) error {
 			return runUninstall(ctx, env, args, out)
 		}},

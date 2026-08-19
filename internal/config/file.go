@@ -40,6 +40,9 @@ type fileConfig struct {
 		Path        *string `yaml:"path"`
 		BusyTimeout *string `yaml:"busy_timeout"`
 	} `yaml:"storage"`
+	Web *struct {
+		BindAddress *string `yaml:"bind_address"`
+	} `yaml:"web"`
 }
 
 // SchemaVersion is the configuration format version.
@@ -145,6 +148,9 @@ func (fc fileConfig) overlay(cfg *Config, path string) error {
 		if err := setDuration(&cfg.Storage.BusyTimeout, fc.Storage.BusyTimeout, "storage.busy_timeout", path); err != nil {
 			return err
 		}
+	}
+	if fc.Web != nil && fc.Web.BindAddress != nil {
+		cfg.Web.BindAddress = strings.TrimSpace(*fc.Web.BindAddress)
 	}
 
 	return nil

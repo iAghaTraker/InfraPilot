@@ -50,6 +50,9 @@ func (c Config) Validate() error {
 		problems = append(problems,
 			"agent.data_dir: must be an absolute path, got "+c.Agent.DataDir)
 	}
+	if c.Web.BindAddress == "" {
+		return errors.New(errors.KindValidation, "config.Validate", "web.bind_address must not be empty")
+	}
 
 	problems = appendRangeProblem(problems, "agent.shutdown_timeout",
 		c.Agent.ShutdownTimeout, minShutdownTimeout, maxShutdownTimeout)

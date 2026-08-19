@@ -34,11 +34,14 @@ type Config struct {
 	Agent   AgentConfig
 	Logging LoggingConfig
 	Storage StorageConfig
+	Web     WebConfig
 
 	// paths records where this configuration was resolved from. It is process
 	// state rather than user input, so it is not settable from a file.
 	paths system.Paths
 }
+
+type WebConfig struct{ BindAddress string }
 
 // AgentConfig configures the Agent daemon.
 type AgentConfig struct {
@@ -97,6 +100,7 @@ func Default() Config {
 			Path:        DefaultDatabaseName,
 			BusyTimeout: 5 * time.Second,
 		},
+		Web: WebConfig{BindAddress: "127.0.0.1"},
 	}
 }
 

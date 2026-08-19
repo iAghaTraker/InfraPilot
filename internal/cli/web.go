@@ -12,12 +12,17 @@ import (
 
 var newWebManager = func() *web.Manager { return web.NewManager(nil) }
 
-func runWeb(ctx context.Context, args []string, out IO) error {
+func runWeb(ctx context.Context, env Env, args []string, out IO) error {
 	if len(args) == 0 {
 		return errors.New(errors.KindUsage, "cli.web", "web subcommand is required")
 	}
 	m := newWebManager()
 	switch args[0] {
+	case "setup":
+		if len(args) != 1 {
+			return errors.New(errors.KindUsage, "cli.web", "web setup takes no arguments")
+		}
+		return runWebSetup(ctx, env, out)
 	case "start":
 		if len(args) > 2 {
 			return errors.New(errors.KindUsage, "cli.web", "usage: infrapilot web start [background]")
@@ -72,7 +77,18 @@ func runWeb(ctx context.Context, args []string, out IO) error {
 			return err
 		}
 		fw := firewall.Detect(ctx, 8090)
-		fmt.Fprintf(out.Out, "InfraPilot Web\n\nService: %s\nAddress: http://%s\nAuthentication: Enabled\nSession Timeout: 15 minutes\nFirewall: %s (%s)\nWeb Port: %d\n", strings.TrimSpace(v), web.DefaultAddress, fw.Detected, fw.Status, fw.Port)
+		bind := "127.0.0.1"
+		if env.Config.Web.BindAddress != "" {
+			bind = env.Config.Web.BindAddress
+		}
+		paired := "unknown"
+		if db, dbErr := openIdentityDB(ctx, env); dbErr == nil {
+			defer db.Close()
+			var n int
+			_ = db.SQL().QueryRowContext(ctx, "SELECT COUNT(*) FROM device_identities WHERE status='active'").Scan(&n)
+			paired = fmt.Sprint(n)
+		}
+		fmt.Fprintf(out.Out, "InfraPilot Web\n\nService: %s\nLocal: http://127.0.0.1:8090\nPublic: http://%s:8090\nBinding: %s\nAuthentication: Enabled\nPaired Devices: %s\nSession Timeout: 15 minutes\nFirewall: %s (%s)\nWeb Port: %d\n", strings.TrimSpace(v), publicIP(ctx), bind, paired, fw.Detected, fw.Status, fw.Port)
 	case "url":
 		if len(args) != 1 {
 			return errors.New(errors.KindUsage, "cli.web", "web url takes no arguments")

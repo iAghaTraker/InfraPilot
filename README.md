@@ -181,6 +181,11 @@ The v0.5 Web Panel serves an embedded static dashboard. It binds to
 challenge/signature login using a paired Ed25519 device identity. It does not
 trust source IPs or browser headers.
 
+Run `infrapilot web setup` for guided network access. Loopback binding remains
+the default; setup asks before binding to `0.0.0.0` or allowing port 8090 in a
+detected firewall. Public IP detection is display-only and never an
+authentication credential.
+
 UI assets are embedded in the Go binary; installed hosts do not need Node.js,
 npm, or yarn. The dashboard foundation does not include Minecraft management,
 cloud services, or external authentication.

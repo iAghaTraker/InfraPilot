@@ -163,6 +163,13 @@ after explicit confirmation and preserves user data by default. The optional
 `--purge` path requires an exact stronger confirmation phrase before removing
 identities, databases, logs, and configuration.
 
+### v0.6.0 — Secure Web Access and easy setup
+
+`infrapilot web setup` checks identity, firewall, and service state, asks before
+network exposure, persists a configurable bind address, and prints a public URL
+when detection succeeds. Device signature authentication and session security
+remain unchanged.
+
 ---
 
 5. v0.1.0 — Foundation

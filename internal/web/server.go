@@ -32,7 +32,11 @@ type Server struct {
 
 func New(cfg config.Config, paths system.Paths, repo *identity.Repository) *Server {
 	s := &Server{cfg: cfg, paths: paths, auth: identity.NewAuthenticator(repo), sessions: make(map[string]time.Time)}
-	s.http = &http.Server{Addr: DefaultAddress, Handler: s.handler(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second}
+	bind := cfg.Web.BindAddress
+	if bind == "" {
+		bind = "127.0.0.1"
+	}
+	s.http = &http.Server{Addr: net.JoinHostPort(bind, "8090"), Handler: s.handler(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second}
 	return s
 }
 func (s *Server) ListenAndServe() error              { return s.http.ListenAndServe() }

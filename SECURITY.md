@@ -96,6 +96,10 @@ operation is exposed only on `/run/infrapilot/agent.sock` with restrictive
 permissions; loopback TCP is fallback-only. The browser receives signatures,
 never private keys. Network location and browser headers are never credentials.
 
+The v0.6 setup workflow keeps loopback binding by default and requires explicit
+confirmation before binding to `0.0.0.0` or changing firewall rules. Public IP
+detection exists only for display and is never trusted for authentication.
+
 Out of scope for v0.4.0:
 
 - The Desktop App, public API and module system.
