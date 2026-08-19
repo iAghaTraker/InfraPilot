@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"regexp"
 	"testing"
 	"time"
 )
@@ -53,8 +54,12 @@ func TestEmbeddedUIIsServed(t *testing.T) {
 	if w.Code != http.StatusOK || !bytes.Contains(w.Body.Bytes(), []byte("InfraPilot")) {
 		t.Fatalf("UI status=%d body=%s", w.Code, w.Body.String())
 	}
+	asset := regexp.MustCompile(`(?:href|src)="(/assets/[^"]+\.css)"`).FindStringSubmatch(w.Body.String())
+	if len(asset) != 2 {
+		t.Fatalf("UI does not reference a CSS asset: %s", w.Body.String())
+	}
 	w = httptest.NewRecorder()
-	s.http.Handler.ServeHTTP(w, httptest.NewRequest("GET", "/assets/app.css", nil))
+	s.http.Handler.ServeHTTP(w, httptest.NewRequest("GET", asset[1], nil))
 	if w.Code != http.StatusOK {
 		t.Fatalf("asset status=%d", w.Code)
 	}
