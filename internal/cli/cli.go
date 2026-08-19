@@ -83,6 +83,7 @@ func commands() []command {
 		{Name: "uninstall", Summary: "Remove InfraPilot services and binaries (preserves data)", Run: func(ctx context.Context, env Env, args []string, out IO) error {
 			return runUninstall(ctx, env, args, out)
 		}},
+		{Name: "update", Summary: "Check for and install InfraPilot updates", Run: func(ctx context.Context, env Env, args []string, out IO) error { return runUpdate(ctx, env, args, out) }},
 	}
 }
 

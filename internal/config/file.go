@@ -43,6 +43,11 @@ type fileConfig struct {
 	Web *struct {
 		BindAddress *string `yaml:"bind_address"`
 	} `yaml:"web"`
+	Update *struct {
+		Enabled       *bool   `yaml:"enabled"`
+		CheckInterval *string `yaml:"check_interval"`
+		AutoInstall   *bool   `yaml:"auto_install"`
+	} `yaml:"update"`
 }
 
 // SchemaVersion is the configuration format version.
@@ -151,6 +156,17 @@ func (fc fileConfig) overlay(cfg *Config, path string) error {
 	}
 	if fc.Web != nil && fc.Web.BindAddress != nil {
 		cfg.Web.BindAddress = strings.TrimSpace(*fc.Web.BindAddress)
+	}
+	if fc.Update != nil {
+		if fc.Update.Enabled != nil {
+			cfg.Update.Enabled = *fc.Update.Enabled
+		}
+		if fc.Update.AutoInstall != nil {
+			cfg.Update.AutoInstall = *fc.Update.AutoInstall
+		}
+		if err := setDuration(&cfg.Update.CheckInterval, fc.Update.CheckInterval, "update.check_interval", path); err != nil {
+			return err
+		}
 	}
 
 	return nil

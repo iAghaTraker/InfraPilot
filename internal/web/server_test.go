@@ -2,6 +2,7 @@ package web
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"github.com/iAghaTraker/InfraPilot/internal/config"
 	"github.com/iAghaTraker/InfraPilot/internal/identity"
@@ -34,6 +35,18 @@ func testServer(t *testing.T) (*Server, *identity.Identity) {
 	cfg := config.Default()
 	cfg.Agent.DataDir = dir
 	return New(cfg, system.Paths{DataDir: dir}, repo), id
+}
+
+func TestShutdownReturnsPromptlyWhenServerIsNotRunning(t *testing.T) {
+	s, _ := testServer(t)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := s.Shutdown(ctx); err != nil {
+		t.Fatalf("shutdown: %v", err)
+	}
+	if err := s.Shutdown(ctx); err != nil {
+		t.Fatalf("second shutdown: %v", err)
+	}
 }
 func TestProtectedAPIsRejectUnauthenticatedRequests(t *testing.T) {
 	s, _ := testServer(t)
