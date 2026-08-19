@@ -202,6 +202,16 @@ install_binaries() {
   run install -m "$BIN_MODE" -o root -g root "${BIN_SRC}/infrapilot"       "${PREFIX}/bin/infrapilot"
   run install -m "$BIN_MODE" -o root -g root "${BIN_SRC}/infrapilot-agent" "${PREFIX}/bin/infrapilot-agent"
   run install -m "$BIN_MODE" -o root -g root "${BIN_SRC}/infrapilot-web" "${PREFIX}/bin/infrapilot-web"
+  if (( DRY_RUN )); then
+    printf '  would write: %s/install.json\n' "$CONFIG_DIR"
+  else
+    install -d -m "$DIR_MODE" -o root -g "$SERVICE_GROUP" "$CONFIG_DIR"
+    local metadata
+    metadata="$(mktemp)"
+    printf '{"method":"binary","prefix":"%s","binary_dir":"%s/bin","services":["%s.service","%s.service"]}\n' "$PREFIX" "$PREFIX" "$SERVICE_NAME" "$WEB_SERVICE_NAME" > "$metadata"
+    install -m 0644 -o root -g root "$metadata" "$CONFIG_DIR/install.json"
+    rm -f "$metadata"
+  fi
   ok "installed infrapilot, infrapilot-agent and infrapilot-web"
 }
 

@@ -41,6 +41,8 @@ RestartSec=5s
 # own parent directory and no permissions have to be fixed after the fact.
 StateDirectory=infrapilot
 StateDirectoryMode=0750
+RuntimeDirectory=infrapilot
+RuntimeDirectoryMode=0750
 
 # Configuration is read-only to the service: the Agent must never rewrite its
 # own configuration, and an operator editing /etc/infrapilot is the only path

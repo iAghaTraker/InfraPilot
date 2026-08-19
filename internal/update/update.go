@@ -2,6 +2,8 @@
 package update
 
 import (
+	"archive/tar"
+	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -10,12 +12,56 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 )
 
 const Repository = "iAghaTraker/InfraPilot"
+
+const MetadataPath = "/etc/infrapilot/install.json"
+
+type Metadata struct {
+	Method    string   `json:"method"`
+	Prefix    string   `json:"prefix"`
+	BinaryDir string   `json:"binary_dir"`
+	Services  []string `json:"services"`
+}
+
+type Runner func(context.Context, string, ...string) error
+
+func commandRunner(ctx context.Context, name string, args ...string) error {
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+	return cmd.Run()
+}
+
+func LoadMetadata(path string) (Metadata, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return Metadata{}, err
+	}
+	var m Metadata
+	if err := json.Unmarshal(b, &m); err != nil {
+		return Metadata{}, err
+	}
+	if m.Method != "binary" || !filepath.IsAbs(m.BinaryDir) {
+		return Metadata{}, fmt.Errorf("invalid installation metadata")
+	}
+	return m, nil
+}
+
+func Detect(metadataPath, executable string) (Metadata, error) {
+	if m, err := LoadMetadata(metadataPath); err == nil {
+		return m, nil
+	}
+	p, _ := filepath.EvalSymlinks(executable)
+	if p == "/usr/local/bin/infrapilot" || executable == "/usr/local/bin/infrapilot" {
+		return Metadata{Method: "binary", Prefix: "/usr/local", BinaryDir: "/usr/local/bin", Services: []string{"infrapilot-agent.service", "infrapilot-web.service"}}, nil
+	}
+	return Metadata{}, fmt.Errorf("cannot determine installation method; reinstall InfraPilot to record installation metadata")
+}
 
 type Release struct {
 	TagName string  `json:"tag_name"`
@@ -137,6 +183,31 @@ func Install(ctx context.Context, release Release, binaryPath string, confirm bo
 	if checksum == "" || !VerifySHA256(data, checksum) {
 		return fmt.Errorf("download checksum verification failed")
 	}
+	// Release artifacts are tarballs; extract the selected CLI binary.
+	if len(data) > 2 && data[0] == 0x1f && data[1] == 0x8b {
+		gz, e := gzip.NewReader(strings.NewReader(string(data)))
+		if e != nil {
+			return e
+		}
+		defer gz.Close()
+		tr := tar.NewReader(gz)
+		for {
+			h, e := tr.Next()
+			if e == io.EOF {
+				break
+			}
+			if e != nil {
+				return e
+			}
+			if filepath.Base(h.Name) == "infrapilot" {
+				data, e = io.ReadAll(io.LimitReader(tr, 128<<20))
+				if e != nil {
+					return e
+				}
+				break
+			}
+		}
+	}
 	if err := os.MkdirAll(filepath.Dir(binaryPath), 0755); err != nil {
 		return err
 	}
@@ -166,4 +237,159 @@ func Install(ctx context.Context, release Release, binaryPath string, confirm bo
 		return err
 	}
 	return nil
+}
+
+// InstallAll transactionally replaces all release binaries, restarts services,
+// verifies their health, and restores the previous binaries on any failure.
+func (c Client) InstallAll(ctx context.Context, release Release, metadata Metadata, run Runner) error {
+	if os.Geteuid() != 0 {
+		return fmt.Errorf("binary update must run as root")
+	}
+	if run == nil {
+		run = commandRunner
+	}
+	var artifact, checksums Asset
+	for _, a := range release.Assets {
+		if a.Name == AssetName() {
+			artifact = a
+		}
+		if a.Name == "checksums.txt" {
+			checksums = a
+		}
+	}
+	if artifact.URL == "" || checksums.URL == "" {
+		return fmt.Errorf("release is missing %s or checksums.txt", AssetName())
+	}
+	download := func(url string, limit int64) ([]byte, error) {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.httpClient().Do(req)
+		if err != nil {
+			return nil, err
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != 200 {
+			return nil, fmt.Errorf("download returned HTTP %s", resp.Status)
+		}
+		return io.ReadAll(io.LimitReader(resp.Body, limit))
+	}
+	archive, err := download(artifact.URL, 256<<20)
+	if err != nil {
+		return err
+	}
+	sums, err := download(checksums.URL, 2<<20)
+	if err != nil {
+		return err
+	}
+	expected := ""
+	for _, line := range strings.Split(string(sums), "\n") {
+		f := strings.Fields(line)
+		if len(f) >= 2 && strings.TrimPrefix(f[1], "*") == artifact.Name {
+			expected = f[0]
+		}
+	}
+	if expected == "" || !VerifySHA256(archive, expected) {
+		return fmt.Errorf("download checksum verification failed")
+	}
+	gz, err := gzip.NewReader(strings.NewReader(string(archive)))
+	if err != nil {
+		return err
+	}
+	defer gz.Close()
+	tr := tar.NewReader(gz)
+	names := []string{"infrapilot", "infrapilot-agent", "infrapilot-web"}
+	files := map[string][]byte{}
+	for {
+		h, e := tr.Next()
+		if e == io.EOF {
+			break
+		}
+		if e != nil {
+			return e
+		}
+		for _, name := range names {
+			if filepath.Base(h.Name) == name {
+				b, e := io.ReadAll(io.LimitReader(tr, 128<<20))
+				if e != nil {
+					return e
+				}
+				files[name] = b
+			}
+		}
+	}
+	for _, name := range names {
+		if len(files[name]) == 0 {
+			return fmt.Errorf("release archive is missing %s", name)
+		}
+	}
+	backups := map[string]string{}
+	installed := []string{}
+	rollback := func(cause error) error {
+		for _, name := range installed {
+			target := filepath.Join(metadata.BinaryDir, name)
+			_ = os.Remove(target)
+			_ = os.Rename(backups[name], target)
+		}
+		for _, svc := range metadata.Services {
+			_ = run(ctx, "systemctl", "restart", svc)
+		}
+		return fmt.Errorf("update failed and was rolled back: %w", cause)
+	}
+	for _, name := range names {
+		target := filepath.Join(metadata.BinaryDir, name)
+		backup := target + ".update-backup"
+		_ = os.Remove(backup)
+		if err := os.Rename(target, backup); err != nil {
+			return rollback(err)
+		}
+		backups[name] = backup
+		tmp, err := os.CreateTemp(metadata.BinaryDir, ".infrapilot-update-")
+		if err != nil {
+			return rollback(err)
+		}
+		tmpName := tmp.Name()
+		if _, err = tmp.Write(files[name]); err == nil {
+			err = tmp.Sync()
+		}
+		if err == nil {
+			err = tmp.Chmod(0755)
+		}
+		if e := tmp.Close(); err == nil {
+			err = e
+		}
+		if err == nil {
+			err = os.Rename(tmpName, target)
+		}
+		_ = os.Remove(tmpName)
+		if err != nil {
+			return rollback(err)
+		}
+		installed = append(installed, name)
+	}
+	for _, svc := range metadata.Services {
+		if err := run(ctx, "systemctl", "restart", svc); err != nil {
+			return rollback(err)
+		}
+	}
+	for _, svc := range metadata.Services {
+		if err := run(ctx, "systemctl", "is-active", "--quiet", svc); err != nil {
+			return rollback(fmt.Errorf("health check failed for %s: %w", svc, err))
+		}
+	}
+	if err := run(ctx, filepath.Join(metadata.BinaryDir, "infrapilot"), "doctor"); err != nil {
+		return rollback(fmt.Errorf("doctor health check failed: %w", err))
+	}
+	for _, backup := range backups {
+		_ = os.Remove(backup)
+	}
+	return nil
+}
+
+func (c Client) httpClient() *http.Client {
+	if c.HTTP != nil {
+		return c.HTTP
+	}
+	return http.DefaultClient
 }

@@ -2,10 +2,12 @@
 package web
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"io"
 	"io/fs"
 	"log/slog"
 	"net"
@@ -49,6 +51,8 @@ func (s *Server) handler() http.Handler {
 	mux.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.FS(assets))))
 	mux.HandleFunc("/api/auth/challenge", s.challenge)
 	mux.HandleFunc("/api/auth/discover", s.discover)
+	mux.HandleFunc("/api/auth/sign", s.sign)
+	mux.HandleFunc("/api/diagnostics", s.diagnostics)
 	mux.HandleFunc("/api/auth/verify", s.verify)
 	mux.HandleFunc("/api/auth/logout", s.logout)
 	mux.Handle("/api/status", s.protected(http.HandlerFunc(s.status)))
@@ -69,19 +73,76 @@ func (s *Server) handler() http.Handler {
 	})
 	return mux
 }
+func bridgeHTTP() *http.Client {
+	return &http.Client{Timeout: 3 * time.Second, Transport: &http.Transport{DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, "unix", "/run/infrapilot/agent.sock")
+	}}}
+}
+func bridgeRequest(r *http.Request, method, path string, body io.Reader) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(r.Context(), method, "http://agent"+path, body)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	return bridgeHTTP().Do(req)
+}
 func (s *Server) discover(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", 405)
 		return
 	}
-	deviceID, err := identity.Metadata(s.cfg.Agent.DataDir)
-	if err != nil {
+	resp, err := bridgeRequest(r, http.MethodGet, "/identity", nil)
+	if err != nil || resp.StatusCode != http.StatusOK {
 		slog.Warn("identity discovery failed", "reason", err.Error())
 		writeJSON(w, map[string]any{"available": false, "reason": "identity unavailable"})
 		return
 	}
-	slog.Info("identity storage found", "device_id", deviceID)
-	writeJSON(w, map[string]any{"available": true, "device_id": deviceID})
+	defer resp.Body.Close()
+	var found struct {
+		DeviceID string `json:"device_id"`
+	}
+	if json.NewDecoder(resp.Body).Decode(&found) != nil || found.DeviceID == "" {
+		writeJSON(w, map[string]any{"available": false, "reason": "identity unavailable"})
+		return
+	}
+	slog.Info("identity storage found", "device_id", found.DeviceID)
+	writeJSON(w, map[string]any{"available": true, "device_id": found.DeviceID})
+}
+func (s *Server) sign(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", 405)
+		return
+	}
+	b, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 4096))
+	if err != nil {
+		http.Error(w, "invalid request", 400)
+		return
+	}
+	resp, err := bridgeRequest(r, http.MethodPost, "/sign", bytes.NewReader(b))
+	if err != nil {
+		http.Error(w, "agent bridge unavailable", 503)
+		return
+	}
+	defer resp.Body.Close()
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(resp.StatusCode)
+	_, _ = io.Copy(w, resp.Body)
+}
+func (s *Server) diagnostics(w http.ResponseWriter, r *http.Request) {
+	bridgeStatus, identityStatus := "unavailable", "unavailable"
+	if resp, err := bridgeRequest(r, http.MethodGet, "/identity", nil); err == nil {
+		defer resp.Body.Close()
+		if resp.StatusCode == 200 {
+			bridgeStatus = "connected"
+			var v struct {
+				DeviceID string `json:"device_id"`
+			}
+			if json.NewDecoder(resp.Body).Decode(&v) == nil && v.DeviceID != "" {
+				identityStatus = "discovered"
+			}
+		}
+	}
+	writeJSON(w, map[string]string{"api": "connected", "bridge": bridgeStatus, "identity": identityStatus})
 }
 func (s *Server) protected(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
