@@ -101,7 +101,7 @@ KeyringMode=private
 # Network. v0.1.0 has no listener at all — the Agent's entire external surface
 # is its data directory. The address families are restricted rather than
 # disabled outright because AF_UNIX is needed to reach the system journal.
-RestrictAddressFamilies=AF_UNIX
+RestrictAddressFamilies=AF_UNIX AF_INET
 
 # Logging. The Agent writes structured logs to stderr; systemd captures them.
 StandardOutput=journal

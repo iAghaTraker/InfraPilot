@@ -10,6 +10,7 @@ import (
 	"github.com/iAghaTraker/InfraPilot/internal/system"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"regexp"
 	"testing"
@@ -23,7 +24,7 @@ func testServer(t *testing.T) (*Server, *identity.Identity) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	id, _, err := identity.Create(filepath.Join(dir, "identity"))
+	id, _, err := identity.Create(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,6 +58,46 @@ func TestProtectedAPIsRejectUnauthenticatedRequests(t *testing.T) {
 		if w.Code != http.StatusUnauthorized {
 			t.Errorf("%s status=%d", path, w.Code)
 		}
+	}
+}
+
+func TestDiscoveryFindsExistingIdentity(t *testing.T) {
+	s, id := testServer(t)
+	w := httptest.NewRecorder()
+	s.http.Handler.ServeHTTP(w, httptest.NewRequest("GET", "/api/auth/discover", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("discover status=%d", w.Code)
+	}
+	var got struct {
+		Available bool   `json:"available"`
+		DeviceID  string `json:"device_id"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if !got.Available || got.DeviceID != id.DeviceID {
+		t.Fatalf("discovery=%+v, want device %s", got, id.DeviceID)
+	}
+}
+
+func TestDiscoveryReportsMissingIdentity(t *testing.T) {
+	s, _ := testServer(t)
+	if err := os.Remove(filepath.Join(s.cfg.Agent.DataDir, "device.key")); err != nil && !os.IsNotExist(err) {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(s.cfg.Agent.DataDir, "device.json")); err != nil && !os.IsNotExist(err) {
+		t.Fatal(err)
+	}
+	w := httptest.NewRecorder()
+	s.http.Handler.ServeHTTP(w, httptest.NewRequest("GET", "/api/auth/discover", nil))
+	var got struct {
+		Available bool `json:"available"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Available {
+		t.Fatal("missing identity reported as available")
 	}
 }
 

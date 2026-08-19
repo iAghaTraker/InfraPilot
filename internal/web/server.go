@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"io/fs"
+	"log/slog"
 	"net"
 	"net/http"
 	"strings"
@@ -73,12 +74,14 @@ func (s *Server) discover(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", 405)
 		return
 	}
-	i, err := identity.Load(s.cfg.Agent.DataDir)
+	deviceID, err := identity.Metadata(s.cfg.Agent.DataDir)
 	if err != nil {
-		writeJSON(w, map[string]any{"available": false})
+		slog.Warn("identity discovery failed", "reason", err.Error())
+		writeJSON(w, map[string]any{"available": false, "reason": "identity unavailable"})
 		return
 	}
-	writeJSON(w, map[string]any{"available": true, "device_id": i.DeviceID})
+	slog.Info("identity storage found", "device_id", deviceID)
+	writeJSON(w, map[string]any{"available": true, "device_id": deviceID})
 }
 func (s *Server) protected(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

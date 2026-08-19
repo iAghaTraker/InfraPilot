@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -19,19 +20,37 @@ const DefaultAddress = "127.0.0.1:8091"
 const DefaultSocket = "/run/infrapilot/agent.sock"
 
 func Serve(ctx context.Context, address, identityDir string) error {
+	var listeners []net.Listener
 	if _, err := os.Stat(DefaultSocket); err == nil {
 		_ = os.Remove(DefaultSocket)
 	}
 	ln, err := net.Listen("unix", DefaultSocket)
 	if err == nil {
 		_ = os.Chmod(DefaultSocket, 0o660)
-		return serveListener(ctx, ln, identityDir)
+		listeners = append(listeners, ln)
+		slog.Info("agent bridge connected", "transport", "unix", "address", DefaultSocket)
 	}
-	ln, err = net.Listen("tcp4", address)
-	if err != nil {
+	tcp, tcpErr := net.Listen("tcp4", address)
+	if tcpErr == nil {
+		listeners = append(listeners, tcp)
+		slog.Info("agent bridge connected", "transport", "tcp", "address", address)
+	}
+	if len(listeners) == 0 {
+		if err != nil {
+			return err
+		}
+		return tcpErr
+	}
+	errCh := make(chan error, len(listeners))
+	for _, listener := range listeners {
+		go func(l net.Listener) { errCh <- serveListener(ctx, l, identityDir) }(listener)
+	}
+	select {
+	case <-ctx.Done():
+		return nil
+	case err := <-errCh:
 		return err
 	}
-	return serveListener(ctx, ln, identityDir)
 }
 
 func serveListener(ctx context.Context, ln net.Listener, identityDir string) error {
@@ -40,8 +59,35 @@ func serveListener(ctx context.Context, ln net.Listener, identityDir string) err
 	if err != nil {
 		return err
 	}
+	mux := bridgeHandler(id)
+	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 3 * time.Second, ReadTimeout: 5 * time.Second, WriteTimeout: 5 * time.Second}
+	go func() {
+		<-ctx.Done()
+		shutdown, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		_ = srv.Shutdown(shutdown)
+	}()
+	return srv.Serve(ln)
+}
+
+func bridgeHandler(id *identity.Identity) http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("/identity", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", 405)
+			return
+		}
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]string{"device_id": id.DeviceID})
+	})
 	mux.HandleFunc("/sign", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", 405)
 			return
@@ -63,11 +109,8 @@ func serveListener(ctx context.Context, ln net.Listener, identityDir string) err
 			http.Error(w, "signing unavailable", 503)
 			return
 		}
-		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]string{"signature": identity.EncodeSignature(sig)})
 	})
-	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 3 * time.Second, ReadTimeout: 5 * time.Second, WriteTimeout: 5 * time.Second}
-	go func() { <-ctx.Done(); _ = srv.Shutdown(context.Background()) }()
-	return srv.Serve(ln)
+	return mux
 }

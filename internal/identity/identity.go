@@ -38,6 +38,28 @@ type Device struct {
 	Status    string
 }
 
+// Metadata reads the non-secret device identifier without loading the private key.
+func Metadata(dir string) (string, error) {
+	_, mp, err := paths(dir)
+	if err != nil {
+		return "", err
+	}
+	data, err := os.ReadFile(mp)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", errors.New(errors.KindNotFound, "identity.Metadata", "no local device identity exists")
+		}
+		return "", errors.Wrap(errors.KindPermission, "identity.Metadata", "cannot read device metadata", err)
+	}
+	var meta struct {
+		DeviceID string `json:"device_id"`
+	}
+	if json.Unmarshal(data, &meta) != nil || meta.DeviceID == "" {
+		return "", errors.New(errors.KindStorage, "identity.Metadata", "device metadata is invalid")
+	}
+	return meta.DeviceID, nil
+}
+
 func paths(dir string) (string, string, error) {
 	if dir == "" || !filepath.IsAbs(dir) {
 		return "", "", errors.New(errors.KindValidation, "identity.paths", "identity directory must be absolute")
@@ -113,7 +135,7 @@ func Create(dir string) (*Identity, string, error) {
 		DeviceID  string `json:"device_id"`
 		CreatedAt string `json:"created_at"`
 	}{id, time.Now().UTC().Format(time.RFC3339Nano)})
-	if err = os.WriteFile(mp, meta, 0o600); err != nil {
+	if err = os.WriteFile(mp, meta, 0o644); err != nil {
 		_ = os.Remove(kp)
 		return nil, "", err
 	}

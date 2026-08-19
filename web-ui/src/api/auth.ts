@@ -1,6 +1,11 @@
 import { api } from './client';
 import type { Discovery, Session } from '../types/api';
-export const discover = () => api<Discovery>('/api/auth/discover');
+export async function discover(): Promise<Discovery> {
+  const response = await fetch('http://127.0.0.1:8091/identity');
+  if (!response.ok) throw new Error('InfraPilot Agent unavailable');
+  const local = await response.json() as { device_id?: string };
+  return { available: Boolean(local.device_id), device_id: local.device_id };
+}
 export async function authenticate(deviceId: string): Promise<Session> {
   const challenge = await api<{ challenge_id: string; challenge: string }>('/api/auth/challenge', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ device_id: deviceId }) });
   const local = await fetch('http://127.0.0.1:8091/sign', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ challenge: challenge.challenge }) });
