@@ -28,3 +28,7 @@ device.json
 .idea/
 *.swp
 .DS_Store
+
+# node moudle
+web-ui/node_modules/
+web-ui/tsconfig.tsbuildinfo
